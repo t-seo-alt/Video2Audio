@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video to Audio Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f8f9fa;
+        }
+
+        /* Google Color Variables */
+        :root {
+            --g-blue: #4285F4;
+            --g-red: #EA4335;
+            --g-yellow: #FBBC05;
+            --g-green: #34A853;
+        }
+
+        /* Top Google Color Bar */
+        .google-bar {
+            height: 6px;
+            background: linear-gradient(to right, 
+                var(--g-blue) 0%, var(--g-blue) 25%, 
+                var(--g-red) 25%, var(--g-red) 50%, 
+                var(--g-yellow) 50%, var(--g-yellow) 75%, 
+                var(--g-green) 75%, var(--g-green) 100%);
+        }
+
+        /* Google Colored Spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--g-blue);
+            border-right: 4px solid var(--g-red);
+            border-bottom: 4px solid var(--g-yellow);
+            border-left: 4px solid var(--g-green);
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .drop-active {
+            border-color: var(--g-blue) !important;
+            background-color: #e8f0fe !important; /* Google Blue Light */
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 relative">
+        <div class="google-bar w-full absolute top-0 left-0"></div>
+        
+        <div class="p-8 sm:p-12">
+            <!-- Header -->
+            <div class="text-center mb-8 mt-2">
+                <h1 class="text-3xl sm:text-4xl font-black mb-2 tracking-wide">
+                    <span class="text-[#4285F4]">V</span><span class="text-[#EA4335]">i</span><span class="text-[#FBBC05]">d</span><span class="text-[#4285F4]">e</span><span class="text-[#34A853]">o</span>
+                    <span class="text-gray-700 mx-1">2</span>
+                    <span class="text-[#4285F4]">A</span><span class="text-[#EA4335]">u</span><span class="text-[#FBBC05]">d</span><span class="text-[#4285F4]">i</span><span class="text-[#34A853]">o</span>
+                </h1>
+                <p class="text-gray-500 font-medium">動画ファイルから音声を抜き出します (WAV形式)</p>
+            </div>
+
+            <!-- Dropzone -->
+            <div id="dropzone" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer transition-colors duration-200 hover:bg-gray-50 hover:border-blue-400 group">
+                <input type="file" id="fileInput" accept="video/*" class="hidden">
+                <div class="flex flex-col items-center justify-center space-y-4">
+                    <div class="p-4 bg-blue-50 rounded-full group-hover:bg-blue-100 transition-colors">
+                        <svg class="w-10 h-10 text-[#4285F4]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"></path>
+                        </svg>
+                    </div>
+                    <div class="text-gray-600">
+                        <span class="font-bold text-[#4285F4]">クリック</span> または動画をドラッグ＆ドロップ
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">対応フォーマット: MP4, WebM, MOVなど</p>
+                </div>
+            </div>
+
+            <!-- Selected File Info -->
+            <div id="fileInfo" class="hidden mt-6 p-4 bg-gray-50 rounded-lg flex items-center justify-between border border-gray-200">
+                <div class="flex items-center overflow-hidden">
+                    <svg class="w-6 h-6 text-gray-500 flex-shrink-0 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
+                    </svg>
+                    <span id="fileName" class="text-gray-700 font-medium truncate">filename.mp4</span>
+                </div>
+                <button id="extractBtn" class="ml-4 flex-shrink-0 bg-[#4285F4] hover:bg-[#3367D6] text-white px-5 py-2 rounded-lg font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    抽出開始
+                </button>
+            </div>
+
+            <!-- Processing / Loading Status -->
+            <div id="loading" class="hidden mt-8 text-center flex-col items-center justify-center space-y-4">
+                <div class="loader mx-auto"></div>
+                <div>
+                    <p id="statusText" class="text-gray-700 font-bold">処理中...</p>
+                    <p class="text-sm text-gray-500 mt-1">ブラウザ内で処理しています。少々お待ちください。</p>
+                </div>
+            </div>
+
+            <!-- Result Area -->
+            <div id="result" class="hidden mt-8">
+                <div class="p-6 border-2 border-green-100 bg-green-50 rounded-xl relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-[#34A853]"></div>
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <svg class="w-5 h-5 text-[#34A853] mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        抽出が完了しました！
+                    </h3>
+                    
+                    <audio id="audioPlayer" controls class="w-full mb-4 shadow-sm rounded-full"></audio>
+                    
+                    <a id="downloadLink" href="#" download="audio.wav" class="inline-flex items-center justify-center w-full bg-[#34A853] hover:bg-[#2b8a44] text-white px-6 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        WAVファイルを保存する
+                    </a>
+                </div>
+            </div>
+            
+            <div class="mt-8 pt-4 border-t border-gray-100">
+                <p class="text-xs text-center text-gray-400 leading-relaxed">
+                    ※すべてのデータ処理はお使いのブラウザ内で行われます。外部サーバーへのアップロードはありません。<br>
+                    ※長時間の動画ファイルは、メモリ不足により抽出できない場合があります。数分程度の短い動画を推奨します。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileNameDisplay = document.getElementById('fileName');
+        const extractBtn = document.getElementById('extractBtn');
+        const loadingArea = document.getElementById('loading');
+        const statusText = document.getElementById('statusText');
+        const resultArea = document.getElementById('result');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const downloadLink = document.getElementById('downloadLink');
+
+        let selectedFile = null;
+
+        // UI Event Listeners for Drag & Drop
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('drop-active');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('drop-active');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drop-active');
+            if (e.dataTransfer.files.length > 0) {
+                handleFileSelection(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelection(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelection(file) {
+            if (!file.type.startsWith('video/')) {
+                alert('動画ファイルを選択してください。');
+                return;
+            }
+            selectedFile = file;
+            fileNameDisplay.textContent = file.name;
+            
+            // UI Reset
+            fileInfo.classList.remove('hidden');
+            resultArea.classList.add('hidden');
+            loadingArea.classList.add('hidden');
+            
+            // Clean up previous blob URL to free memory
+            if (audioPlayer.src) {
+                URL.revokeObjectURL(audioPlayer.src);
+                audioPlayer.src = '';
+            }
+        }
+
+        extractBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            // UI State change
+            extractBtn.disabled = true;
+            fileInfo.classList.add('opacity-50');
+            resultArea.classList.add('hidden');
+            loadingArea.classList.remove('hidden');
+
+            try {
+                statusText.textContent = "1/3: 動画ファイルを読み込んでいます...";
+                const arrayBuffer = await readFileAsArrayBuffer(selectedFile);
+                
+                statusText.textContent = "2/3: 音声データをデコードしています...";
+                // Initialize AudioContext
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Decode audio from video file
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                statusText.textContent = "3/3: WAVファイルに変換しています...";
+                
+                // Allow UI to update before heavy synchronous processing
+                await new Promise(resolve => setTimeout(resolve, 50));
+                
+                const wavBuffer = audioBufferToWav(audioBuffer);
+                
+                // Create Blob and URL
+                const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(wavBlob);
+                
+                // Setup Result UI
+                audioPlayer.src = audioUrl;
+                downloadLink.href = audioUrl;
+                
+                // Format download filename
+                const originalName = selectedFile.name;
+                const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+                downloadLink.download = `${baseName}_audio.wav`;
+                
+                // Show Result
+                loadingArea.classList.add('hidden');
+                resultArea.classList.remove('hidden');
+                
+            } catch (error) {
+                console.error("Audio Extraction Error:", error);
+                alert('エラーが発生しました。ファイルが大きすぎるか、未対応の形式の可能性があります。\n詳細: ' + error.message);
+                loadingArea.classList.add('hidden');
+            } finally {
+                // Restore UI State
+                extractBtn.disabled = false;
+                fileInfo.classList.remove('opacity-50');
+            }
+        });
+
+        // Helper: Read File as ArrayBuffer
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error("ファイルの読み込みに失敗しました"));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // ==========================================
+        // WAV Encoding Functions
+        // ==========================================
+        function audioBufferToWav(buffer) {
+            const numChannels = buffer.numberOfChannels;
+            const sampleRate = buffer.sampleRate;
+            const format = 1; // 1 = PCM
+            const bitDepth = 16;
+            
+            let result;
+            if (numChannels === 2) {
+                result = interleave(buffer.getChannelData(0), buffer.getChannelData(1));
+            } else {
+                result = buffer.getChannelData(0);
+            }
+            
+            return encodeWAV(result, format, sampleRate, numChannels, bitDepth);
+        }
+
+        // Interleave left and right channels for stereo
+        function interleave(inputL, inputR) {
+            const length = inputL.length + inputR.length;
+            const result = new Float32Array(length);
+            let index = 0, inputIndex = 0;
+            
+            while (index < length) {
+                result[index++] = inputL[inputIndex];
+                result[index++] = inputR[inputIndex];
+                inputIndex++;
+            }
+            return result;
+        }
+
+        // Encode Float32 PCM to WAV ArrayBuffer
+        function encodeWAV(samples, format, sampleRate, numChannels, bitDepth) {
+            const bytesPerSample = bitDepth / 8;
+            const blockAlign = numChannels * bytesPerSample;
+            const buffer = new ArrayBuffer(44 + samples.length * bytesPerSample);
+            const view = new DataView(buffer);
+            
+            // RIFF chunk descriptor
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * bytesPerSample, true);
+            writeString(view, 8, 'WAVE');
+            
+            // fmt sub-chunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, format, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * blockAlign, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitDepth, true);
+            
+            // data sub-chunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, samples.length * bytesPerSample, true);
+            
+            // Write PCM samples
+            floatTo16BitPCM(view, 44, samples);
+            
+            return buffer;
+        }
+
+        // Write string to DataView
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        // Convert Float32 audio to 16-bit PCM
+        function floatTo16BitPCM(output, offset, input) {
+            for (let i = 0; i < input.length; i++, offset += 2) {
+                let s = Math.max(-1, Math.min(1, input[i]));
+                // clip and round
+                output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+        }
+    </script>
+</body>
+</html>
